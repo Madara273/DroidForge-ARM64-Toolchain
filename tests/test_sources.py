@@ -64,3 +64,20 @@ class SourceTests(unittest.TestCase):
                 guarded_run([sys.executable, '-c',
                              'from pathlib import Path; import time; Path("payload").write_bytes(b"x"*8192); time.sleep(10)'],
                             cwd=root, budget=(root, 4096))
+
+    def test_detects_edits_to_prepared_tracked_sources(self):
+        from droidforge.sources import tracked_digest, verify_tracked
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            def git(*args):
+                subprocess.run(['git', '-C', str(repo), *args], check=True, capture_output=True)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.org')
+            git('config', 'user.name', 'Test')
+            (repo / 'source.c').write_text('original')
+            git('add', '.')
+            git('commit', '-qm', 'initial')
+            expected = tracked_digest(repo)
+            verify_tracked(repo, expected)
+            (repo / 'source.c').write_text('edited')
+            with self.assertRaises(ForgeError): verify_tracked(repo, expected)

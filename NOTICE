@@ -1,0 +1,16 @@
+DroidForge ARM64 Toolchain
+Independent source/build orchestration by Madara273 and contributors.
+
+External build recipe dependency: lzhiyong/android-sdk-tools
+https://github.com/lzhiyong/android-sdk-tools
+Copyright 2022 Github Lzhiyong. Apache License 2.0.
+The pinned recipe is fetched separately; it is not original DroidForge code.
+
+Android tools and libraries are built from Android Open Source Project sources.
+https://android.googlesource.com/
+Original copyright and license notices remain applicable. Copies of discovered
+source license/notice files are shipped in licenses/. See manifest.json for
+exact source commits and applied/generated source preparation hashes.
+Third-party dependencies (including protobuf, Abseil, OpenSSL/BoringSSL, zlib,
+libpng, libusb, e2fsprogs and others) retain their individual licenses.
+No binary assets from Commit451/android-arm-build-tools are included.

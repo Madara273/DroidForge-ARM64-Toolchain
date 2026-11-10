@@ -8,11 +8,42 @@ import tempfile
 import os
 import signal
 import subprocess
+import hashlib
 
 from .core import ForgeError, atomic_json, config, digest, run
 
 
 EXCLUDED_SOURCES = {'src/art', 'src/dalvik', 'src/development', 'src/f2fs-tools', 'src/sqlite'}
+
+
+def tracked_digest(path):
+    result = subprocess.run(['git', 'diff', '--binary', 'HEAD'], cwd=path,
+                            capture_output=True, check=True)
+    return hashlib.sha256(result.stdout).hexdigest()
+
+
+def verify_tracked(path, expected):
+    if tracked_digest(path) != expected:
+        raise ForgeError(f'Змінені підготовлені джерела: {path}. Відновіть їх перед збіркою.')
+
+
+def verify_preparation(root):
+    root = Path(root)
+    preparation = root / '.forge/preparation.json'
+    backend = root / '.forge/recipe'
+    if not preparation.exists():
+        return
+    data = json.loads(preparation.read_text())
+    for name, expected in data.get('diffs', {}).items():
+        path = backend / name
+        if not path.resolve().is_relative_to(backend.resolve()):
+            raise ForgeError('Неприпустимий шлях preparation.')
+        verify_tracked(path, expected)
+    for name, expected in data['files'].items():
+        path = backend / name
+        if (not path.resolve().is_relative_to(backend.resolve())
+                or not path.is_file() or digest(path) != expected):
+            raise ForgeError(f'Змінений файл підготовки: {path}')
 
 
 def selected_manifest(entries):
@@ -121,6 +152,7 @@ def resolve(url, ref):
 
 def fetch(root):
     root = Path(root)
+    verify_preparation(root)
     settings = config(root)
     recipe = settings['recipe']
     backend = root / '.forge/recipe'
