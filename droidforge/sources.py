@@ -9,6 +9,7 @@ import os
 import signal
 import subprocess
 import hashlib
+import threading
 
 from .core import ForgeError, atomic_json, config, digest, run
 
@@ -16,14 +17,37 @@ from .core import ForgeError, atomic_json, config, digest, run
 EXCLUDED_SOURCES = {'src/art', 'src/dalvik', 'src/development', 'src/f2fs-tools', 'src/sqlite'}
 
 
-def tracked_digest(path):
+def tracked_digest(path, *, nested_sources=False):
+    path = Path(path)
     result = subprocess.run(['git', 'diff', '--binary', 'HEAD'], cwd=path,
                             capture_output=True, check=True)
-    return hashlib.sha256(result.stdout).hexdigest()
+    fingerprint = hashlib.sha256(result.stdout)
+    extras = set()
+    for options in (['--others', '--exclude-standard'], ['--others', '--ignored', '--exclude-standard']):
+        output = subprocess.check_output(['git', 'ls-files', '-z', *options], cwd=path)
+        extras.update(os.fsdecode(name) for name in output.split(b'\0') if name)
+    for name in sorted(extras):
+        if nested_sources and name.startswith('src/'):
+            continue
+        candidate = path / name
+        # CMake regenerates these exact protobuf outputs before compilation.
+        generated_proto = ((path.name == 'base' and name.startswith('tools/aapt2/'))
+                           or (path.name == 'adb' and name.startswith(('proto/', 'fastdeploy/proto/'))))
+        if (generated_proto and name.endswith(('.pb.cc', '.pb.h'))
+                and candidate.with_name(candidate.name.rsplit('.pb.', 1)[0] + '.proto').is_file()):
+            continue
+        fingerprint.update(name.encode() + b'\0')
+        if candidate.is_symlink():
+            fingerprint.update(os.readlink(candidate).encode())
+        elif candidate.is_file():
+            fingerprint.update(digest(candidate).encode())
+        else:
+            fingerprint.update(b'unexpected-directory')
+    return fingerprint.hexdigest()
 
 
-def verify_tracked(path, expected):
-    if tracked_digest(path) != expected:
+def verify_tracked(path, expected, *, nested_sources=False):
+    if tracked_digest(path, nested_sources=nested_sources) != expected:
         raise ForgeError(f'Змінені підготовлені джерела: {path}. Відновіть їх перед збіркою.')
 
 
@@ -38,7 +62,7 @@ def verify_preparation(root):
         path = backend / name
         if not path.resolve().is_relative_to(backend.resolve()):
             raise ForgeError('Неприпустимий шлях preparation.')
-        verify_tracked(path, expected)
+        verify_tracked(path, expected, nested_sources=name == '.')
     for name, expected in data['files'].items():
         path = backend / name
         if (not path.resolve().is_relative_to(backend.resolve())
@@ -48,7 +72,7 @@ def verify_preparation(root):
 
 def selected_manifest(entries):
     sparse = {
-        'src/base': ['libs/androidfw', 'tools/aapt2'],
+        'src/base': ['libs/androidfw', 'tools/aapt2', 'tools/split-select'],
         'src/build': ['tools/zipalign'],
         'src/soong': ['cc/libbuildversion'],
     }
@@ -67,7 +91,9 @@ def cache_size(root):
     return total
 
 
-def guarded_run(command, *, cwd, budget):
+def guarded_run(command, *, cwd, budget, cancel=None):
+    if cancel is not None and cancel.is_set():
+        raise ForgeError('Завантаження скасовано.')
     if budget is None:
         return run(command, cwd=cwd)
     root, limit = budget
@@ -77,6 +103,8 @@ def guarded_run(command, *, cwd, budget):
     process = subprocess.Popen(list(map(str, command)), cwd=cwd, start_new_session=True)
     try:
         while True:
+            if cancel is not None and cancel.is_set():
+                raise ForgeError('Завантаження скасовано.')
             try:
                 code = process.wait(timeout=0.5)
             except subprocess.TimeoutExpired:
@@ -106,8 +134,12 @@ def validate_entry(entry):
         raise ForgeError(f'Джерело має використовувати HTTPS: {entry["url"]}')
 
 
-def checkout(url, commit, destination, *, sparse=(), budget=None):
+def checkout(url, commit, destination, *, sparse=(), budget=None, prepared=False, nested_sources=False, cancel=None):
     destination = Path(destination)
+    if cancel is not None and cancel.is_set():
+        raise ForgeError('Завантаження скасовано.')
+    if budget is not None and cache_size(budget[0]) >= budget[1]:
+        raise ForgeError('Досягнуто ліміт кешу джерел.')
     if not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ForgeError('Очікується повний SHA коміту.')
     if destination.is_symlink():
@@ -119,6 +151,15 @@ def checkout(url, commit, destination, *, sparse=(), budget=None):
         remote = run(['git', 'remote', 'get-url', 'origin'], cwd=destination, capture=True)
         if actual != commit or remote != url:
             raise ForgeError(f'Checkout не відповідає lock: {destination}')
+        if not prepared:
+            verify_tracked(destination, hashlib.sha256(b'').hexdigest(), nested_sources=nested_sources)
+        if sparse:
+            enabled = subprocess.run(['git', 'config', '--bool', 'core.sparseCheckout'],
+                                     cwd=destination, capture_output=True, text=True)
+            current = (run(['git', 'sparse-checkout', 'list'], cwd=destination, capture=True).splitlines()
+                       if enabled.stdout.strip() == 'true' else [])
+            if sorted(current) != sorted(sparse):
+                guarded_run(['git', 'sparse-checkout', 'set', '--cone', *sparse], cwd=destination, budget=budget, cancel=cancel)
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=destination.name + '.partial-', dir=destination.parent))
@@ -129,9 +170,9 @@ def checkout(url, commit, destination, *, sparse=(), budget=None):
             run(['git', 'sparse-checkout', 'set', '--cone', *sparse], cwd=temporary)
         guarded_run(['git', '-c', 'http.lowSpeedLimit=1024', '-c', 'http.lowSpeedTime=120',
                      'fetch', '--depth=1', '--filter=blob:none', 'origin', commit],
-                    cwd=temporary, budget=budget)
+                    cwd=temporary, budget=budget, cancel=cancel)
         guarded_run(['git', '-c', 'advice.detachedHead=false', 'checkout', '-q', 'FETCH_HEAD'],
-                    cwd=temporary, budget=budget)
+                    cwd=temporary, budget=budget, cancel=cancel)
         if run(['git', 'rev-parse', 'HEAD'], cwd=temporary, capture=True) != commit:
             raise ForgeError(f'Отримано неправильний commit: {url}')
         temporary.rename(destination)
@@ -156,7 +197,10 @@ def fetch(root):
     settings = config(root)
     recipe = settings['recipe']
     backend = root / '.forge/recipe'
-    checkout(recipe['url'], recipe['commit'], backend)
+    budget = (backend, int(settings['build']['max_source_gib'] * 1024**3) - 128 * 1024**2)
+    prepared = (root / '.forge/preparation.json').exists()
+    checkout(recipe['url'], recipe['commit'], backend, budget=budget,
+             prepared=prepared, nested_sources=True)
     manifest = selected_manifest(json.loads((backend / 'repository.json').read_text()))
     for entry in manifest:
         validate_entry(entry)
@@ -187,14 +231,22 @@ def fetch(root):
             entries = list(pool.map(pin, manifest))
         lock = {'schema': 1, 'recipe': identity, 'sources': entries}
         atomic_json(lock_path, lock)
+    cancel = threading.Event()
     def obtain(entry):
         # Reserve 128 MiB for bytes in flight and filesystem metadata.
-        budget = (backend, int(settings['build']['max_source_gib'] * 1024**3) - 128 * 1024**2)
         checkout(entry['url'], entry['commit'], backend / entry['path'],
-                 sparse=entry['sparse'], budget=budget)
+                 sparse=entry['sparse'], budget=budget, prepared=prepared, cancel=cancel)
     with ThreadPoolExecutor(max_workers=settings['build']['fetch_jobs']) as pool:
         futures = [pool.submit(obtain, entry) for entry in lock['sources']]
-        for future in as_completed(futures):
-            future.result()
+        try:
+            for future in as_completed(futures):
+                future.result()
+        except BaseException:
+            cancel.set()
+            for future in futures:
+                future.cancel()
+            raise
+    if cache_size(backend) >= budget[1]:
+        raise ForgeError('Досягнуто ліміт кешу джерел.')
     print(f'Джерела зафіксовано: {len(lock["sources"])} репозиторіїв.', flush=True)
     return backend

@@ -41,7 +41,8 @@
       "ref": "platform-tools-35.0.2",
       "sparse": [
         "libs/androidfw",
-        "tools/aapt2"
+        "tools/aapt2",
+        "tools/split-select"
       ],
       "url": "https://android.googlesource.com/platform/frameworks/base"
     },

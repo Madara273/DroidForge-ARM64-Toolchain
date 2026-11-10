@@ -13,7 +13,7 @@ from .core import ForgeError, TARGETS, atomic_json, config, digest, run, timesta
 from .sources import cache_size, checkout, fetch, tracked_digest
 from .artifacts import elf_arm64, make_manifest, validate_manifest
 
-DEPENDENCIES = ('git', 'cmake', 'ninja', 'clang', 'clang++', 'bison', 'flex', 'go', 'patch')
+DEPENDENCIES = ('git', 'cmake', 'ninja', 'clang', 'clang++', 'gcc', 'g++', 'bison', 'flex', 'go', 'patch')
 
 
 def selected_targets(targets):
@@ -72,8 +72,15 @@ def prepare(root, backend):
          'src/incremental_delivery/sysprop/include/IncrementalProperties.sysprop.h')
     copy('patches/misc/IncrementalProperties.sysprop.cpp',
          'src/incremental_delivery/sysprop/IncrementalProperties.sysprop.cpp')
-    for name in ('deployagent.inc', 'deployagentscript.inc'):
-        copy('patches/misc/' + name, 'src/adb/fastdeploy/deployagent/' + name)
+    # Do not embed the recipe's precompiled classes.dex payload. Fastdeploy is
+    # rejected by the command parser; these source-only placeholders are unused.
+    for name, symbol in (('deployagent.inc', 'kDeployAgent'), ('deployagentscript.inc', 'kDeployAgentScript')):
+        write(backend / 'src/adb/fastdeploy/deployagent' / name,
+              f'// DroidForge: fastdeploy disabled; no embedded DEX.\nunsigned char {symbol}[] = {{0}};\n'.encode())
+    replace('src/adb/client/adb_install.cpp', '*use_fastdeploy = true;',
+            'error_exit("DroidForge: --fastdeploy is disabled (no precompiled agent).");')
+    replace('src/adb/client/commandline.cpp', '--fastdeploy: use fast deploy',
+            '--fastdeploy: unavailable in this DroidForge build')
     copy('patches/misc/platform_tools_version.h',
          'src/soong/cc/libbuildversion/include/platform_tools_version.h')
     # AOSP adds config.h to protobuf sources; upstream CMake omits its directory.
@@ -104,7 +111,7 @@ def prepare(root, backend):
     text = top.read_text().replace('add_subdirectory(others)', '# DroidForge: other executables excluded')
     write(top, text.encode())
     lock = json.loads((Path(root) / 'sources.lock.json').read_text())
-    diffs = {'.': tracked_digest(backend)}
+    diffs = {'.': tracked_digest(backend, nested_sources=True)}
     diffs.update({entry['path']: tracked_digest(backend / entry['path']) for entry in lock['sources']})
     atomic_json(Path(root) / '.forge/preparation.json', {
         'files': changes, 'diffs': diffs,
@@ -122,7 +129,8 @@ def build(root, targets=None, jobs=None):
     state = root / '.forge'
     log = state / 'logs/build.log'
     environment = os.environ.copy()
-    environment.update(CC='clang', CXX='clang++')
+    environment.update(CC='gcc', CXX='g++')
+    environment.update(CCACHE_DIR=str(state / 'ccache'), CCACHE_MAXSIZE='256M')
     host = state / 'host-protoc'
     common = ['-GNinja', '-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
               '-DCMAKE_C_COMPILER=clang', '-DCMAKE_CXX_COMPILER=clang++']
@@ -140,7 +148,9 @@ def build(root, targets=None, jobs=None):
         protoc = candidates[0]
     target_dir = state / 'build'
     compat = root / 'compat/linux_glibc.h'
-    run(['cmake', '-S', backend, '-B', target_dir, *common, '-DSDK_STATIC=OFF', '-DSDK_STRIP=ON',
+    target_common = [item.replace('-DCMAKE_C_COMPILER=clang', '-DCMAKE_C_COMPILER=gcc')
+                    .replace('-DCMAKE_CXX_COMPILER=clang++', '-DCMAKE_CXX_COMPILER=g++') for item in common]
+    run(['cmake', '-S', backend, '-B', target_dir, *target_common, '-DSDK_STATIC=OFF', '-DSDK_STRIP=ON',
          '-DPROTOC_PATH=' + str(protoc), '-DCMAKE_CXX_FLAGS=-include ' + str(compat)], log=log, env=environment)
     run(['cmake', '--build', target_dir, '--target', *targets, '-j', jobs], log=log, env=environment)
     stage = Path(tempfile.mkdtemp(prefix='stage-', dir=state))
@@ -154,8 +164,14 @@ def build(root, targets=None, jobs=None):
         lock = json.loads((root / 'sources.lock.json').read_text())
         provenance = {'created': timestamp(), 'sources': lock,
                       'preparation': json.loads((state / 'preparation.json').read_text()),
-                      'compiler': run(['clang++', '--version'], capture=True),
-                      'host': platform.platform(), 'jobs': jobs}
+                      'compiler': run(['g++', '--version'], capture=True),
+                      'host': platform.platform(), 'jobs': jobs,
+                      'features': {'adb_fastdeploy': False},
+                      'orchestrator_sha256': {
+                          path.relative_to(root).as_posix(): digest(path)
+                          for folder in ('droidforge', 'compat')
+                          for path in (root / folder).rglob('*')
+                          if path.is_file() and '__pycache__' not in path.parts}}
         make_manifest(stage, targets, provenance)
         verify(stage)
         output = state / 'out'
@@ -195,7 +211,7 @@ def verify(stage):
                                 capture_output=True, text=True, timeout=30)
         output = result.stdout + result.stderr
         # zipalign and split-select use exit 1 for help/usage.
-        expected = (0, 1) if target in ('zipalign', 'split-select') else (0,)
+        expected = (0, 1, 2) if target in ('zipalign', 'split-select') else (0,)
         if result.returncode not in expected or not output.strip():
             raise ForgeError(f'Smoke test failed: {target}\n{output}')
         checks[target] = output.strip()[:3000]

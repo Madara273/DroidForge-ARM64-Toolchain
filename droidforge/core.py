@@ -10,6 +10,7 @@ import shlex
 import subprocess
 import tempfile
 import tomllib
+import signal
 
 TARGETS = ('aapt2', 'aidl', 'zipalign', 'split-select', 'adb', 'fastboot')
 
@@ -42,25 +43,34 @@ def atomic_json(path, value):
 def run(command, *, cwd=None, capture=False, log=None, env=None):
     command = [str(item) for item in command]
     print('+ ' + shlex.join(command), flush=True)
-    if capture:
-        result = subprocess.run(command, cwd=cwd, text=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, env=env)
-        if result.returncode:
-            raise ForgeError(f'{shlex.join(command)}\n{result.stderr.strip()}')
-        return result.stdout.strip()
-    if log is None:
-        result = subprocess.run(command, cwd=cwd, env=env)
-    else:
+    stream = None
+    if log is not None:
         log.parent.mkdir(parents=True, exist_ok=True)
-        with log.open('a') as stream:
-            stream.write('\n+ ' + shlex.join(command) + '\n')
-            stream.flush()
-            result = subprocess.run(command, cwd=cwd, stdout=stream,
-                                    stderr=subprocess.STDOUT, env=env)
-    if result.returncode:
-        raise ForgeError(f'Команда завершилася з кодом {result.returncode}'
-                         + (f'; журнал: {log}' if log else ''))
-    return ''
+        stream = log.open('a')
+        stream.write('\n+ ' + shlex.join(command) + '\n')
+        stream.flush()
+    process = None
+    try:
+        process = subprocess.Popen(command, cwd=cwd, text=True, env=env,
+                                   stdout=subprocess.PIPE if capture else stream,
+                                   stderr=subprocess.PIPE if capture else (subprocess.STDOUT if stream else None),
+                                   start_new_session=True)
+        output, errors = process.communicate()
+        if process.returncode:
+            raise ForgeError(f'{shlex.join(command)}\n{(errors or "").strip()}' if capture
+                             else f'Команда завершилася з кодом {process.returncode}'
+                             + (f'; журнал: {log}' if log else ''))
+        return (output or '').strip()
+    finally:
+        if process is not None and process.poll() is None:
+            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+        if stream is not None:
+            stream.close()
 
 
 @contextmanager
@@ -92,6 +102,9 @@ def config(root):
     for key in ('jobs', 'fetch_jobs'):
         if not isinstance(data['build'][key], int) or not 1 <= data['build'][key] <= 64:
             raise ForgeError(f'build.{key} має бути в межах 1..64.')
+    limit = data['build']['max_source_gib']
+    if not isinstance(limit, (int, float)) or not 0.25 <= limit <= 5:
+        raise ForgeError('build.max_source_gib має бути в межах 0.25..5 GiB.')
     selected = data['build']['targets']
     if not selected or len(set(selected)) != len(selected) or set(selected) - set(TARGETS):
         raise ForgeError('Неприпустимий перелік targets.')

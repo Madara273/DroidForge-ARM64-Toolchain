@@ -81,3 +81,73 @@ class SourceTests(unittest.TestCase):
             verify_tracked(repo, expected)
             (repo / 'source.c').write_text('edited')
             with self.assertRaises(ForgeError): verify_tracked(repo, expected)
+
+    def test_untracked_and_ignored_headers_change_fingerprint(self):
+        from droidforge.sources import tracked_digest, verify_tracked
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            def git(*args):
+                subprocess.run(['git', '-C', str(repo), *args], check=True, capture_output=True)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.org')
+            git('config', 'user.name', 'Test')
+            (repo / '.gitignore').write_text('ignored.h\n')
+            git('add', '.')
+            git('commit', '-qm', 'initial')
+            expected = tracked_digest(repo)
+            for name in ('extra.h', 'ignored.h'):
+                with self.subTest(name=name):
+                    (repo / name).write_text('shadowed input')
+                    with self.assertRaises(ForgeError): verify_tracked(repo, expected)
+                    (repo / name).unlink()
+
+    def test_initial_checkout_rejects_local_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / 'remote'
+            repo.mkdir()
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(repo), *args], text=True).strip()
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.org')
+            git('config', 'user.name', 'Test')
+            (repo / 'source').write_text('original')
+            git('add', '.')
+            git('commit', '-qm', 'initial')
+            commit = git('rev-parse', 'HEAD')
+            destination = Path(directory) / 'checkout'
+            checkout(str(repo), commit, destination)
+            (destination / 'source').write_text('tampered')
+            with self.assertRaises(ForgeError): checkout(str(repo), commit, destination)
+
+    def test_cache_hit_checks_budget(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory) / 'remote'
+            repo.mkdir()
+            def git(*args):
+                return subprocess.check_output(['git', '-C', str(repo), *args], text=True).strip()
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.org')
+            git('config', 'user.name', 'Test')
+            (repo / 'source').write_text('data')
+            git('add', '.')
+            git('commit', '-qm', 'initial')
+            commit = git('rev-parse', 'HEAD')
+            with self.assertRaises(ForgeError):
+                checkout(str(repo), commit, repo, budget=(Path(directory), 1))
+
+    def test_cancel_event_stops_active_fetch_process(self):
+        from droidforge.sources import guarded_run
+        import sys, threading, time
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cancel = threading.Event()
+            timer = threading.Timer(0.1, cancel.set)
+            timer.start()
+            started = time.monotonic()
+            try:
+                with self.assertRaises(ForgeError):
+                    guarded_run([sys.executable, '-c', 'import time; time.sleep(10)'],
+                                cwd=root, budget=(root, 1024**2), cancel=cancel)
+            finally:
+                timer.cancel()
+            self.assertLess(time.monotonic() - started, 3)

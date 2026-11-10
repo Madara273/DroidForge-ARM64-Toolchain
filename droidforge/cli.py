@@ -25,16 +25,18 @@ def main():
     root = Path(__file__).resolve().parent.parent
     try:
         config(root)
+        # sudo bootstrap must never create root-owned .forge state in a user's clone.
+        if args.command == 'bootstrap':
+            if os.geteuid() != 0:
+                raise ForgeError('Для пакетів: sudo ./forge bootstrap (лише цей крок потребує root).')
+            from .core import run
+            run(['apt-get', 'update'])
+            run(['apt-get', 'install', '-y', 'git', 'ca-certificates', 'python3', 'cmake',
+                 'ninja-build', 'clang', 'build-essential', 'bison', 'flex', 'golang-go', 'patch', 'ccache',
+                 'pkg-config', 'libusb-1.0-0-dev', 'libudev-dev'])
+            return
         with process_lock(root):
-            if args.command == 'bootstrap':
-                if os.geteuid() != 0:
-                    raise ForgeError('Для пакетів: sudo ./forge bootstrap (лише цей крок потребує root).')
-                from .core import run
-                run(['apt-get', 'update'])
-                run(['apt-get', 'install', '-y', 'git', 'ca-certificates', 'python3', 'cmake',
-                     'ninja-build', 'clang', 'bison', 'flex', 'golang-go', 'patch', 'ccache',
-                     'pkg-config', 'libusb-1.0-0-dev', 'libudev-dev'])
-            elif args.command == 'doctor':
+            if args.command == 'doctor':
                 from .build import doctor
                 doctor(root)
             elif args.command == 'fetch':

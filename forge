@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+import sys
+
+if sys.version_info < (3, 11):
+    raise SystemExit('DroidForge потребує Python 3.11 або новішого.')
+
 from droidforge.cli import main
 
 if __name__ == '__main__':
