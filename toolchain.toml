@@ -1,0 +1,11 @@
+# Stable source baseline; platform-tools and Android API numbers are independent.
+[recipe]
+url = "https://github.com/lzhiyong/android-sdk-tools.git"
+commit = "fe637bf075f1b734b4b01d281f9f58899245ed92"
+aosp_ref = "platform-tools-35.0.2"
+
+[build]
+jobs = 1
+fetch_jobs = 2
+max_source_gib = 5
+targets = ["aapt2", "aidl", "zipalign", "split-select", "adb", "fastboot"]

@@ -1,0 +1,264 @@
+{
+  "recipe": {
+    "aosp_ref": "platform-tools-35.0.2",
+    "commit": "fe637bf075f1b734b4b01d281f9f58899245ed92",
+    "manifest_sha256": "c71d3f9c39760a33b838c57221f6f901b4312dc4d7d3b7effe428b6a5a55da35",
+    "url": "https://github.com/lzhiyong/android-sdk-tools.git"
+  },
+  "schema": 1,
+  "sources": [
+    {
+      "commit": "8817f93011f172bbb199dacd6310d5b146e6fde9",
+      "path": "src/abseil-cpp",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/abseil-cpp"
+    },
+    {
+      "commit": "ce9ea51f30f69f7560db692f7cb4d5d5502c3653",
+      "path": "src/adb",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/packages/modules/adb"
+    },
+    {
+      "commit": "4e2b7b3dc8c8ac9ae3fabec9460dd6d99f92a6ab",
+      "path": "src/aidl",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/tools/aidl"
+    },
+    {
+      "commit": "6eedb12491da292911a1b88911a6682fd2e827bd",
+      "path": "src/avb",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/avb"
+    },
+    {
+      "commit": "723419df1a0769b63587722a8a0a0980f454ffd2",
+      "path": "src/base",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [
+        "libs/androidfw",
+        "tools/aapt2"
+      ],
+      "url": "https://android.googlesource.com/platform/frameworks/base"
+    },
+    {
+      "commit": "2a7146e5d8c55fb53d31f66f8e1351baa3fb0d4e",
+      "path": "src/boringssl",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/boringssl"
+    },
+    {
+      "commit": "0d40cc0076003b010b2902894e3eac1d1ccffb8e",
+      "path": "src/brotli",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/brotli"
+    },
+    {
+      "commit": "46581c7be3390d0ecd0a037e6e6ebc2893d5768a",
+      "path": "src/build",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [
+        "tools/zipalign"
+      ],
+      "url": "https://android.googlesource.com/platform/build"
+    },
+    {
+      "commit": "90e4908e776d2be9b26b87af649e63e4208cf085",
+      "path": "src/core",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/core"
+    },
+    {
+      "commit": "81357db29373b2bab58af88dc4b747662047b7e7",
+      "path": "src/e2fsprogs",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/e2fsprogs"
+    },
+    {
+      "commit": "20fd404393d65d2aff6dbc79dcbf4da6e68cabb2",
+      "path": "src/expat",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/expat"
+    },
+    {
+      "commit": "d8e488a499f5a96f788eac9d5364f0b839306c57",
+      "path": "src/extras",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/extras"
+    },
+    {
+      "commit": "c230d4f0a5a7058a6f0468cd384200ba2ed2d8c6",
+      "path": "src/fmtlib",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/fmtlib"
+    },
+    {
+      "commit": "b9640af0b0a5b0e94bbef3f584763be6926b1ce3",
+      "path": "src/googletest",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/googletest"
+    },
+    {
+      "commit": "d5b8d81edc4a1e5a1995e1e4858cb1b340080137",
+      "path": "src/incremental_delivery",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/incremental_delivery"
+    },
+    {
+      "commit": "4d823700a3d9c5727a039d65587ca99519f32de2",
+      "path": "src/jsoncpp",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/jsoncpp"
+    },
+    {
+      "commit": "328768fabb054387ad7f64c984d4afcea70d25c9",
+      "path": "src/libbase",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/libbase"
+    },
+    {
+      "commit": "3f98a222b00621de0815c70bcbee9f3d19434359",
+      "path": "src/libpng",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/libpng"
+    },
+    {
+      "commit": "ab84e07b9a3575bc6eddb87dba87f85f0ab8490f",
+      "path": "src/libusb",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/libusb"
+    },
+    {
+      "commit": "b1d0c47e59e1a59b79f38ed0cbb94191cbf37416",
+      "path": "src/libziparchive",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/libziparchive"
+    },
+    {
+      "commit": "153a153f1fccc0cc6b96766d1557518303aebd5e",
+      "path": "src/logging",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/logging"
+    },
+    {
+      "commit": "96cc9e92d0bdc4811d15c962ce457128d419cc80",
+      "path": "src/lz4",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/lz4"
+    },
+    {
+      "commit": "3169df7f1376b098b98c3576f9f45c6d786c462e",
+      "path": "src/mdnsresponder",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/mdnsresponder"
+    },
+    {
+      "commit": "cbf4ce939fb73c0b74127c4cb5e1092b127a4f4f",
+      "path": "src/mkbootimg",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/tools/mkbootimg"
+    },
+    {
+      "commit": "55c639d4b83235438ae431c76ffcb6e49be34f75",
+      "path": "src/native",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/frameworks/native"
+    },
+    {
+      "commit": "ced29e3d2bc4f1549738c1c2bb702a1c7232a8bb",
+      "path": "src/openscreen",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/openscreen"
+    },
+    {
+      "commit": "06781197cc1b93713b9c07aebc75d9790d2d4d76",
+      "path": "src/pcre",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/pcre"
+    },
+    {
+      "commit": "5b489930dd17777ea9173840faba912c2db1748a",
+      "path": "src/protobuf",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/protobuf"
+    },
+    {
+      "commit": "0496d8248e0cb20d6512387f109f41f37f68f6e1",
+      "path": "src/selinux",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/selinux"
+    },
+    {
+      "commit": "050e044df577a106757e9df904535bde9e6f83ce",
+      "path": "src/soong",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [
+        "cc/libbuildversion"
+      ],
+      "url": "https://android.googlesource.com/platform/build/soong"
+    },
+    {
+      "commit": "c1a174ab5c7f50e6877d3f1c8355759890e61300",
+      "path": "src/tinyxml2",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/tinyxml2"
+    },
+    {
+      "commit": "540353061e864599723d4a838d503b80ecdf61ed",
+      "path": "src/unwinding",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/system/unwinding"
+    },
+    {
+      "branch": "v1.3.1",
+      "commit": "51b7f2abdade71cd9bb0e7a373ef2610ec6f9daf",
+      "path": "src/zlib",
+      "ref": "v1.3.1",
+      "sparse": [],
+      "url": "https://github.com/madler/zlib"
+    },
+    {
+      "commit": "502a8f40590050c27a0a6259a0c08ed858f27f8e",
+      "path": "src/zopfli",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/zopfli"
+    },
+    {
+      "commit": "667562a5a6e0d0296db762110e437283472cf455",
+      "path": "src/zstd",
+      "ref": "platform-tools-35.0.2",
+      "sparse": [],
+      "url": "https://android.googlesource.com/platform/external/zstd"
+    }
+  ]
+}
