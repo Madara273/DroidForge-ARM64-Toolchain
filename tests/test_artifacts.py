@@ -67,3 +67,18 @@ class ArtifactTests(unittest.TestCase):
                 self.assertNotIn('fastboot', names)
                 self.assertIn('NOTICES', names)
                 self.assertIn('manifest.json', names)
+
+    def test_native_x86_distribution_rejects_arm64_binary(self):
+        from droidforge.artifacts import elf_arch
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = fixture(root)
+            for name in ('aapt2', 'adb'):
+                data = bytearray((stage / name).read_bytes())
+                data[18:20] = (62).to_bytes(2, 'little')
+                (stage / name).write_bytes(data)
+            make_manifest(stage, ('aapt2', 'adb'), {}, arch='x86_64')
+            self.assertEqual(validate_manifest(stage)['architecture'], 'x86_64')
+            archive = package(stage, root / 'dist')
+            self.assertIn('linux-x86_64', archive.name)
+            with self.assertRaises(ForgeError): elf_arch(stage / 'adb', 'arm64')

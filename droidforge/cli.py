@@ -10,7 +10,7 @@ from .core import ForgeError, TARGETS, config, process_lock
 
 
 def main():
-    parser = argparse.ArgumentParser(description='DroidForge — Android host tools із джерел для Linux ARM64')
+    parser = argparse.ArgumentParser(description='DroidForge — Android host tools із джерел для Linux ARM64/x86_64')
     parser.add_argument('--version', action='version', version=__version__)
     commands = parser.add_subparsers(dest='command', required=True)
     for name in ('doctor', 'bootstrap', 'fetch', 'verify', 'package'):
@@ -18,6 +18,7 @@ def main():
     build_parser = commands.add_parser('build')
     build_parser.add_argument('--targets', nargs='+', choices=TARGETS)
     build_parser.add_argument('--jobs', type=int)
+    build_parser.add_argument('--arch', choices=('auto', 'arm64', 'x86_64'), default='auto')
     install_parser = commands.add_parser('install')
     install_parser.add_argument('--sdk', required=True, type=Path)
     install_parser.add_argument('--build-tools', required=True)
@@ -30,10 +31,9 @@ def main():
             if os.geteuid() != 0:
                 raise ForgeError('Для пакетів: sudo ./forge bootstrap (лише цей крок потребує root).')
             from .core import run
-            run(['apt-get', 'update'])
-            run(['apt-get', 'install', '-y', 'git', 'ca-certificates', 'python3', 'cmake',
-                 'ninja-build', 'clang', 'build-essential', 'bison', 'flex', 'golang-go', 'patch', 'ccache',
-                 'pkg-config', 'libusb-1.0-0-dev', 'libudev-dev'])
+            from .platforms import host_release, package_commands
+            for command in package_commands(host_release()):
+                run(command)
             return
         with process_lock(root):
             if args.command == 'doctor':
@@ -44,7 +44,7 @@ def main():
                 fetch(root)
             elif args.command == 'build':
                 from .build import build
-                build(root, args.targets, args.jobs)
+                build(root, args.targets, args.jobs, arch=args.arch)
             elif args.command == 'verify':
                 from .build import verify
                 verify(root / '.forge/out')

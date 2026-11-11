@@ -11,9 +11,20 @@ import tempfile
 
 from .core import ForgeError, TARGETS, atomic_json, config, digest, run, timestamp
 from .sources import cache_size, checkout, fetch, tracked_digest
-from .artifacts import elf_arm64, make_manifest, validate_manifest
+from .artifacts import elf_arch, make_manifest, validate_manifest
+from .platforms import normalize_arch, host_release, is_wsl
 
 DEPENDENCIES = ('git', 'cmake', 'ninja', 'clang', 'clang++', 'gcc', 'g++', 'bison', 'flex', 'go', 'patch')
+
+
+def rewrite(text, before, after, label):
+    if before in after and after in text:
+        return text
+    if before in text:
+        return text.replace(before, after)
+    if after not in text:
+        raise ForgeError(f'Неочікуваний вміст pinned source: {label}')
+    return text
 
 
 def selected_targets(targets):
@@ -30,8 +41,11 @@ def jobs_count(value, settings):
 
 
 def doctor(root):
-    if platform.system() != 'Linux' or platform.machine() not in ('aarch64', 'arm64'):
-        raise ForgeError('Підтримується нативна збірка Linux ARM64/glibc.')
+    if platform.system() != 'Linux':
+        raise ForgeError('Запустіть у Linux/glibc або WSL2 з Linux-дистрибутивом.')
+    arch = normalize_arch(platform.machine())
+    print(f'Система: {host_release().get("PRETTY_NAME", "Linux")} | {arch}'
+          + (' | WSL' if is_wsl() else ''))
     missing = []
     for name in DEPENDENCIES:
         location = shutil.which(name)
@@ -61,11 +75,7 @@ def prepare(root, backend):
         write(backend / target, (backend / source).read_bytes())
     def replace(name, before, after):
         path = backend / name
-        text = path.read_text()
-        if before in text:
-            text = text.replace(before, after)
-        elif after not in text:
-            raise ForgeError(f'Неочікуваний вміст pinned source: {name}')
+        text = rewrite(path.read_text(), before, after, name)
         write(path, text.encode())
 
     copy('patches/misc/IncrementalProperties.sysprop.h',
@@ -86,6 +96,15 @@ def prepare(root, backend):
     # AOSP adds config.h to protobuf sources; upstream CMake omits its directory.
     replace('src/protobuf/CMakeLists.txt', '${protobuf_SOURCE_DIR}/src)',
             '${protobuf_SOURCE_DIR}/src\n  ${protobuf_SOURCE_DIR}/config)')
+    # The forced compatibility header initializes glibc feature macros before
+    # this file's _GNU_SOURCE undef. Select the actual POSIX ABI explicitly.
+    replace('src/libbase/posix_strerror_r.cpp', '#include <string.h>',
+            '#include <string.h>\n#ifdef __GLIBC__\nextern "C" int __xpg_strerror_r(int, char*, size_t) noexcept;\n#endif')
+    replace('src/libbase/posix_strerror_r.cpp', '  return strerror_r(errnum, buf, buflen);',
+            '#ifdef __GLIBC__\n  return __xpg_strerror_r(errnum, buf, buflen);\n'
+            '#else\n  return strerror_r(errnum, buf, buflen);\n#endif')
+    replace('src/base/libs/androidfw/AssetsProvider.cpp', 'struct stat sb{.st_mtime = -1};',
+            'struct stat sb{};\n  sb.st_mtime = -1;')
     for name, imports in {'ApkInfo.proto': ['Resources.proto'],
                           'Resources.proto': ['Configuration.proto'],
                           'ResourcesInternal.proto': ['Configuration.proto', 'Resources.proto']}.items():
@@ -109,7 +128,23 @@ def prepare(root, backend):
         write(backend / category / 'CMakeLists.txt', content.encode())
     top = backend / 'CMakeLists.txt'
     text = top.read_text().replace('add_subdirectory(others)', '# DroidForge: other executables excluded')
+    if '# DroidForge glibc entropy declarations' not in text:
+        text += ('\n# DroidForge glibc entropy declarations\n'
+                 'target_compile_definitions(expat PRIVATE _DEFAULT_SOURCE)\n')
     write(top, text.encode())
+    # Keep generated Flex/Bison C++ out of the immutable source checkout.
+    aidl_recipe = backend / 'build-tools/aidl.cmake'
+    aidl_text = aidl_recipe.read_text()
+    for generated in ('aidl_language_y.cpp', 'aidl_language_y.h',
+                      'aidl_language_l.cpp', 'aidl_language_l.h'):
+        aidl_text = aidl_text.replace('${SRC}/aidl/' + generated,
+                                      '${CMAKE_BINARY_DIR}/generated/aidl/' + generated)
+    if '# DroidForge generated parser directory' not in aidl_text:
+        aidl_text = ('# DroidForge generated parser directory\n'
+                     'file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated/aidl)\n' + aidl_text
+                     + '\ntarget_include_directories(aidl PRIVATE ${SRC}/aidl '
+                     '${CMAKE_BINARY_DIR}/generated/aidl)\n')
+    write(aidl_recipe, aidl_text.encode())
     lock = json.loads((Path(root) / 'sources.lock.json').read_text())
     diffs = {'.': tracked_digest(backend, nested_sources=True)}
     diffs.update({entry['path']: tracked_digest(backend / entry['path']) for entry in lock['sources']})
@@ -118,15 +153,24 @@ def prepare(root, backend):
         'compat_sha256': digest(Path(root) / 'compat/linux_glibc.h')})
 
 
-def build(root, targets=None, jobs=None):
+def build(root, targets=None, jobs=None, arch='auto'):
     root = Path(root)
     settings = config(root)
     targets = selected_targets(targets or settings['build']['targets'])
     jobs = jobs_count(jobs, settings['build'])
     doctor(root)
+    host_arch = normalize_arch(platform.machine())
+    if arch != 'auto' and arch != host_arch:
+        raise ForgeError('Ця версія збирає інструменти для поточного процесора; '
+                         f'на цьому хості виберіть --arch {host_arch}.')
+    arch = host_arch
+    state = root / '.forge'
+    host_stamp = state / 'build-host.json'
+    if host_stamp.exists() and json.loads(host_stamp.read_text())['architecture'] != arch:
+        raise ForgeError('Кеш створено на іншій архітектурі. Використайте окремий checkout проєкту.')
+    atomic_json(host_stamp, {'architecture': arch})
     backend = fetch(root)
     prepare(root, backend)
-    state = root / '.forge'
     log = state / 'logs/build.log'
     environment = os.environ.copy()
     environment.update(CC='gcc', CXX='g++')
@@ -158,7 +202,7 @@ def build(root, targets=None, jobs=None):
         for target in targets:
             category = 'platform-tools' if target in ('adb', 'fastboot') else 'build-tools'
             source = target_dir / 'bin' / category / target
-            elf_arm64(source)
+            elf_arch(source, arch)
             shutil.copy2(source, stage / target)
         collect_notices(root, backend, stage)
         lock = json.loads((root / 'sources.lock.json').read_text())
@@ -172,7 +216,7 @@ def build(root, targets=None, jobs=None):
                           for folder in ('droidforge', 'compat')
                           for path in (root / folder).rglob('*')
                           if path.is_file() and '__pycache__' not in path.parts}}
-        make_manifest(stage, targets, provenance)
+        make_manifest(stage, targets, provenance, arch=arch)
         verify(stage)
         output = state / 'out'
         if output.exists():

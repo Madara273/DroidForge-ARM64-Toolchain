@@ -41,3 +41,10 @@ class BuildTests(unittest.TestCase):
                                     env=environment, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse((root / '.forge').exists(), 'sudo bootstrap must not own user build state')
+
+    def test_source_rewrite_is_idempotent_when_replacement_contains_original(self):
+        from droidforge.build import rewrite
+        once = rewrite('include', 'include', 'include\nhelper', 'fixture')
+        self.assertEqual(once, 'include\nhelper')
+        self.assertEqual(rewrite(once, 'include', 'include\nhelper', 'fixture'), once)
+        self.assertEqual(rewrite('prefix/Resource.proto', 'prefix/Resource.proto', 'Resource.proto', 'fixture'), 'Resource.proto')

@@ -4,6 +4,7 @@
  */
 #pragma once
 #include <stdint.h>
+#include <limits.h>
 #ifdef __cplusplus
 #include <cstring>
 #include <memory>
@@ -15,6 +16,16 @@ using std::atomic_uint;
 using std::atomic_uint_least16_t;
 using std::atomic_uint_least32_t;
 using std::atomic_uint_least64_t;
+using std::atomic_int_least16_t;
+using std::atomic_int_least32_t;
+using std::atomic_int_least64_t;
+using std::memory_order;
+using std::memory_order_relaxed;
+using std::memory_order_consume;
+using std::memory_order_acquire;
+using std::memory_order_release;
+using std::memory_order_acq_rel;
+using std::memory_order_seq_cst;
 #endif
 #ifndef __has_builtin
 #define __has_builtin(x) 0

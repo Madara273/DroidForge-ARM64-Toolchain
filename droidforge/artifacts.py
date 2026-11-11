@@ -12,32 +12,39 @@ import tempfile
 from .core import ForgeError, TARGETS, atomic_json, digest
 
 
-def elf_arm64(path):
+def elf_arch(path, arch):
+    machines = {'arm64': 183, 'x86_64': 62}
+    if arch not in machines:
+        raise ForgeError(f'Невідома архітектура: {arch}')
     path = Path(path)
     if path.is_symlink() or not path.is_file():
         raise ForgeError(f'Не звичайний файл: {path}')
     with path.open('rb') as stream:
         header = stream.read(64)
     if (len(header) < 64 or header[:6] != b'\x7fELF\x02\x01'
-            or int.from_bytes(header[18:20], 'little') != 183):
-        raise ForgeError(f'Очікувався ELF64 little-endian AArch64: {path}')
+            or int.from_bytes(header[18:20], 'little') != machines[arch]):
+        raise ForgeError(f'Очікувався ELF64 little-endian {arch}: {path}')
     if not os.access(path, os.X_OK):
         raise ForgeError(f'Файл не виконуваний: {path}')
 
 
-def make_manifest(stage, targets, provenance):
+def elf_arm64(path):
+    return elf_arch(path, 'arm64')
+
+
+def make_manifest(stage, targets, provenance, arch='arm64'):
     stage = Path(stage)
     if not targets or set(targets) - set(TARGETS):
         raise ForgeError('Неприпустимий перелік артефактів.')
     for target in targets:
-        elf_arm64(stage / target)
+        elf_arch(stage / target, arch)
     files = {}
     for path in sorted(stage.rglob('*')):
         if path.is_symlink():
             raise ForgeError(f'Посилання в артефактах: {path}')
         if path.is_file() and path.name not in ('manifest.json', 'SHA256SUMS'):
             files[path.relative_to(stage).as_posix()] = digest(path)
-    atomic_json(stage / 'manifest.json', {'schema': 1, 'targets': list(targets),
+    atomic_json(stage / 'manifest.json', {'schema': 1, 'architecture': arch, 'targets': list(targets),
                                         'files': files, 'provenance': provenance})
     sums = {**files, 'manifest.json': digest(stage / 'manifest.json')}
     (stage / 'SHA256SUMS').write_text(''.join(f'{sha}  {name}\n' for name, sha in sorted(sums.items())))
@@ -60,7 +67,7 @@ def validate_manifest(stage):
     for name in targets:
         if name not in manifest['files']:
             raise ForgeError(f'Артефакт відсутній у manifest: {name}')
-        elf_arm64(stage / name)
+        elf_arch(stage / name, manifest['architecture'])
     expected = {**manifest['files'], 'manifest.json': digest(stage / 'manifest.json')}
     actual = (stage / 'SHA256SUMS').read_text()
     if actual != ''.join(f'{sha}  {name}\n' for name, sha in sorted(expected.items())):
@@ -72,7 +79,7 @@ def package(stage, directory):
     stage, directory = Path(stage), Path(directory)
     manifest = validate_manifest(stage)
     directory.mkdir(parents=True, exist_ok=True)
-    archive = directory / 'droidforge-linux-arm64.tar.xz'
+    archive = directory / f'droidforge-linux-{manifest["architecture"]}.tar.xz'
     fd, name = tempfile.mkstemp(dir=directory, suffix='.tar.xz')
     os.close(fd)
     temporary = Path(name)

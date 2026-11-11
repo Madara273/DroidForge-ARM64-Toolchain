@@ -7,5 +7,5 @@ aosp_ref = "platform-tools-35.0.2"
 [build]
 jobs = 1
 fetch_jobs = 2
-max_source_gib = 5
+max_source_gib = 4.5
 targets = ["aapt2", "aidl", "zipalign", "split-select", "adb", "fastboot"]
