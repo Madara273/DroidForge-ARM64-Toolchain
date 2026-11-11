@@ -1,5 +1,7 @@
 """Linux distribution package plans and host CPU detection."""
 import platform
+import re
+from pathlib import Path
 from .core import ForgeError
 
 
@@ -9,6 +11,26 @@ def normalize_arch(name):
     if name.lower() not in aliases:
         raise ForgeError(f'Непідтримувана архітектура: {name}')
     return aliases[name.lower()]
+
+
+def validate_host(system, machine, libc):
+    if system != 'Linux' or libc != 'glibc':
+        raise ForgeError('Потрібен Linux/glibc або Linux-дистрибутив у WSL2.')
+    return normalize_arch(machine)
+
+
+def verify_cache_arch(state, arch):
+    for name in ('build', 'host-protoc'):
+        directory = Path(state) / name
+        if not directory.exists() or not any(directory.iterdir()):
+            continue
+        systems = list(directory.glob('CMakeFiles/*/CMakeSystem.cmake'))
+        if not systems:
+            raise ForgeError(f'Кеш без метаданих CPU: {directory}. Використайте окремий checkout.')
+        for system in systems:
+            match = re.search(r'set\(CMAKE_SYSTEM_PROCESSOR\s+"([^"\n]+)"\)', system.read_text())
+            if not match or normalize_arch(match.group(1)) != arch:
+                raise ForgeError(f'Кеш для іншого CPU: {directory}. Використайте окремий checkout.')
 
 
 def package_commands(release):

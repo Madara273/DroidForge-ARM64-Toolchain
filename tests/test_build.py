@@ -48,3 +48,37 @@ class BuildTests(unittest.TestCase):
         self.assertEqual(once, 'include\nhelper')
         self.assertEqual(rewrite(once, 'include', 'include\nhelper', 'fixture'), once)
         self.assertEqual(rewrite('prefix/Resource.proto', 'prefix/Resource.proto', 'Resource.proto', 'fixture'), 'Resource.proto')
+
+    def test_shell_bootstrap_can_start_without_python_on_path(self):
+        import os, shutil, subprocess, sys
+        if os.geteuid() != 0:
+            self.skipTest('package bootstrap requires root')
+        project = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shutil.copytree(project / 'droidforge', root / 'droidforge')
+            for name in ('forge', 'bootstrap.sh', 'toolchain.toml'):
+                shutil.copy2(project / name, root / name)
+            fake = root / 'bin'
+            fake.mkdir()
+            for name in ('id', 'dirname'):
+                (fake / name).symlink_to(shutil.which(name))
+            apt = fake / 'apt-get'
+            apt.write_text('''#!/bin/sh
+printf '%s\\n' "$*" >> "$FAKE_APT_LOG"
+case "$*" in
+  *python3*) /bin/ln -sf "$REAL_PYTHON" "$FAKE_BIN/python3"
+             /bin/ln -sf /usr/bin/git "$FAKE_BIN/git" ;;
+esac
+''')
+            apt.chmod(0o755)
+            environment = dict(os.environ, PATH=str(fake), FAKE_BIN=str(fake),
+                               FAKE_APT_LOG=str(root / 'apt.log'), REAL_PYTHON=sys.executable)
+            before = subprocess.run([root / 'forge', 'bootstrap'], env=environment,
+                                    capture_output=True, text=True)
+            self.assertNotEqual(before.returncode, 0, 'fixture must start without Python')
+            after = subprocess.run(['/bin/sh', root / 'bootstrap.sh'], env=environment,
+                                   capture_output=True, text=True)
+            self.assertEqual(after.returncode, 0, after.stderr)
+            self.assertIn('build-essential', (root / 'apt.log').read_text())
+            self.assertFalse((root / '.forge').exists())

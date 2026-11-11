@@ -3,6 +3,8 @@ import sys
 
 if sys.version_info < (3, 11):
     raise SystemExit('DroidForge потребує Python 3.11 або новішого.')
+if sys.platform != 'linux':
+    raise SystemExit('Запустіть DroidForge у Linux або в Linux-терміналі WSL2.')
 
 from droidforge.cli import main
 

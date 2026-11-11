@@ -7,17 +7,17 @@ from droidforge.core import ForgeError, atomic_json
 from droidforge.artifacts import elf_arm64, make_manifest, validate_manifest, install_sdk, package
 
 
-def fixture(root):
+def fixture(root, arch="arm64"):
     stage = root / 'out'
     stage.mkdir()
     binary = bytearray(64)
     binary[:6] = b'\x7fELF\x02\x01'
-    binary[18:20] = (183).to_bytes(2, 'little')
+    binary[18:20] = {'arm64':183, 'x86_64':62}[arch].to_bytes(2, 'little')
     for name in ('aapt2', 'adb'):
         (stage / name).write_bytes(binary)
         (stage / name).chmod(0o755)
     (stage / 'NOTICES').write_text('Fixture attribution')
-    make_manifest(stage, ('aapt2', 'adb'), {'sources': []})
+    make_manifest(stage, ('aapt2', 'adb'), {'sources': []}, arch=arch)
     return stage
 
 
@@ -39,7 +39,9 @@ class ArtifactTests(unittest.TestCase):
     def test_install_backs_up_and_rejects_symlinks_and_traversal(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            stage = fixture(root)
+            from droidforge.platforms import normalize_arch
+            import platform
+            stage = fixture(root, normalize_arch(platform.machine()))
             sdk = root / 'sdk'
             tools = sdk / 'build-tools/36.0.0'
             tools.mkdir(parents=True)
@@ -82,3 +84,20 @@ class ArtifactTests(unittest.TestCase):
             archive = package(stage, root / 'dist')
             self.assertIn('linux-x86_64', archive.name)
             with self.assertRaises(ForgeError): elf_arch(stage / 'adb', 'arm64')
+
+    def test_install_rejects_foreign_arch_before_any_writes(self):
+        import platform
+        from droidforge.platforms import normalize_arch
+        native = normalize_arch(platform.machine())
+        foreign = 'x86_64' if native == 'arm64' else 'arm64'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stage = fixture(root, foreign)
+            sdk = root / 'sdk'
+            tools = sdk / 'build-tools/36.0.0'
+            tools.mkdir(parents=True)
+            (tools / 'source.properties').write_text('Pkg.Revision=36.0.0')
+            (tools / 'aapt2').write_bytes(b'keep original')
+            with self.assertRaises(ForgeError): install_sdk(stage, sdk, '36.0.0')
+            self.assertEqual((tools / 'aapt2').read_bytes(), b'keep original')
+            self.assertFalse((sdk / '.droidforge-backups').exists())

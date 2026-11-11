@@ -103,6 +103,11 @@ def package(stage, directory):
 def install_sdk(stage, sdk, version):
     stage, sdk = Path(stage), Path(sdk).absolute()
     manifest = validate_manifest(stage)
+    import platform
+    from .platforms import normalize_arch
+    if manifest['architecture'] != normalize_arch(platform.machine()):
+        raise ForgeError('Архітектура інструментів не відповідає цьому CPU. '
+                         'Використайте package для перенесення на потрібну систему.')
     if not re.fullmatch(r'\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?', version):
         raise ForgeError('Очікується номер build-tools, наприклад 36.0.0.')
     tools = sdk / 'build-tools' / version
