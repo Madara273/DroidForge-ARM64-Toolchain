@@ -72,7 +72,8 @@ def verify_preparation(root):
 
 def selected_manifest(entries):
     sparse = {
-        'src/base': ['libs/androidfw', 'tools/aapt2', 'tools/split-select'],
+        'src/base': ['libs/androidfw', 'tools/aapt', 'tools/aapt2', 'tools/split-select',
+                     'cmds/idmap2/libidmap2_policies/include'],
         'src/build': ['tools/zipalign'],
         'src/soong': ['cc/libbuildversion'],
     }
@@ -83,9 +84,15 @@ def selected_manifest(entries):
 def cache_size(root):
     total = 0
     for parent, _, files in os.walk(root, followlinks=False):
+        try:
+            directory_stat = Path(parent).lstat()
+            total += max(directory_stat.st_size, directory_stat.st_blocks * 512)
+        except FileNotFoundError:
+            continue
         for name in files:
             try:
-                total += (Path(parent) / name).lstat().st_size
+                metadata = (Path(parent) / name).lstat()
+                total += max(metadata.st_size, metadata.st_blocks * 512)
             except FileNotFoundError:
                 pass
     return total

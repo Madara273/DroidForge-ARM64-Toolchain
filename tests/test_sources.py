@@ -62,8 +62,9 @@ class SourceTests(unittest.TestCase):
             root = Path(directory)
             with self.assertRaises(ForgeError):
                 guarded_run([sys.executable, '-c',
-                             'from pathlib import Path; import time; Path("payload").write_bytes(b"x"*8192); time.sleep(10)'],
-                            cwd=root, budget=(root, 4096))
+                             'from pathlib import Path; import time; Path("payload").write_bytes(b"x"*32768); time.sleep(10)'],
+                            cwd=root, budget=(root, 8192))
+            self.assertTrue((root / 'payload').exists(), 'budget must stop an active transfer')
 
     def test_detects_edits_to_prepared_tracked_sources(self):
         from droidforge.sources import tracked_digest, verify_tracked

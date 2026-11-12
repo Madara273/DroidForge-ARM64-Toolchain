@@ -41,8 +41,10 @@
       "ref": "platform-tools-35.0.2",
       "sparse": [
         "libs/androidfw",
+        "tools/aapt",
         "tools/aapt2",
-        "tools/split-select"
+        "tools/split-select",
+        "cmds/idmap2/libidmap2_policies/include"
       ],
       "url": "https://android.googlesource.com/platform/frameworks/base"
     },

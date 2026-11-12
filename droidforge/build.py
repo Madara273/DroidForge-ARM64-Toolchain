@@ -133,12 +133,55 @@ def prepare(root, backend):
     replace('src/openscreen/platform/impl/network_interface.cc',
             '#include "platform/impl/network_interface.h"',
             '#include "platform/impl/network_interface.h"\n#include <algorithm>')
+    # std::packaged_task has no noexcept function-signature specialization.
+    # Use one ABI consistently in exception-enabled and disabled translation units.
+    replace('src/openscreen/platform/api/task_runner.h',
+            'std::packaged_task<void() noexcept>', 'std::packaged_task<void()>')
+    replace('src/libbase/include/android-base/thread_annotations.h',
+            '#define THREAD_ANNOTATION_ATTRIBUTE__(x) __attribute__((x))',
+            '#if defined(__clang__)\n'
+            '#define THREAD_ANNOTATION_ATTRIBUTE__(x) __attribute__((x))\n'
+            '#else\n#define THREAD_ANNOTATION_ATTRIBUTE__(x)\n#endif')
+    replace('src/aidl/code_writer.h',
+            '  bool Write(const char* format, Args... args) __attribute__((format(printf, 2, 0))) {',
+            '  __attribute__((format(printf, 2, 0)))\n'
+            '  bool Write(const char* format, Args... args) {')
+    replace('src/aidl/code_writer.h', '  template <>\n  bool Write(const char* str)',
+            '  bool Write(const char* str)')
+    replace('src/aidl/generate_aidl_mappings.cpp', '= dump_location(*method);',
+            '= ::android::aidl::mappings::dump_location(*method);')
+    replace('src/aidl/generate_java.cpp', '+ dump_location(a) +',
+            '+ ::android::aidl::java::dump_location(a) +')
+    replace('src/build/tools/zipalign/ZipFile.cpp', '_Static_assert(sizeof(off_t)',
+            'static_assert(sizeof(off_t)')
+    # Modern Linux headers end URBs in a flexible array. Keep the bulk-transfer
+    # headers separately allocated, preserving pointer identity for ioctl/reaping.
+    for direction in ('in', 'out'):
+        replace('src/adb/client/usb_linux.cpp', f'    usbdevfs_urb urb_{direction};',
+                f'    std::unique_ptr<usbdevfs_urb> urb_{direction}{{new usbdevfs_urb{{}}}};')
+        replace('src/adb/client/usb_linux.cpp', f'&h->urb_{direction}',
+                f'h->urb_{direction}.get()')
+        replace('src/adb/client/usb_linux.cpp', f'h->urb_{direction}.status',
+                f'h->urb_{direction}->status')
     for name, imports in {'ApkInfo.proto': ['Resources.proto'],
                           'Resources.proto': ['Configuration.proto'],
                           'ResourcesInternal.proto': ['Configuration.proto', 'Resources.proto']}.items():
         for imported in imports:
             replace('src/base/tools/aapt2/' + name,
                     'frameworks/base/tools/aapt2/' + imported, imported)
+    # split-select only needs the locale/config helpers, not the AAPT1 program.
+    assets = (backend / 'src/base/tools/aapt/AaptAssets.cpp').read_text()
+    begin = assets.find('/* static */\ninline bool isAlpha')
+    end = assets.find('\nbool\nAaptGroupEntry::initFromDirName', begin)
+    if begin < 0 or end <= begin:
+        raise ForgeError('Не знайдено locale helpers у pinned AaptAssets.cpp.')
+    locale = (''.join(assets.splitlines(keepends=True)[:3])
+              + '// DroidForge locale-only extraction from pinned AOSP AaptAssets.cpp.\n'
+              '#include "AaptAssets.h"\n#include "AaptConfig.h"\n#include "AaptUtil.h"\n'
+              '#include <ctype.h>\n#include <cstring>\n'
+              'using android::String8; using android::Vector; using android::ResTable_config;\n'
+              + assets[begin:end])
+    write(backend / 'droidforge_locale.cpp', locale.encode())
     path = backend / 'src/abseil-cpp/CMakeLists.txt'
     if '/usr/src/googletest' in path.read_text():
         replace('src/abseil-cpp/CMakeLists.txt', '/usr/src/googletest', '${CMAKE_SOURCE_DIR}/src/googletest')
@@ -152,6 +195,16 @@ def prepare(root, backend):
     }.items():
         content = (f'# DroidForge six-tool overlay; upstream recipes retain their notices.\n'
                    f'project({category})\nset(EXECUTABLE_OUTPUT_PATH ${{CMAKE_BINARY_DIR}}/bin/{category})\n'
+                   f'set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${{CMAKE_BINARY_DIR}}/bin/{category})\n'
+                   + ('if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")\n'
+                      '  add_compile_definitions(_Nonnull= _Nullable= _Null_unspecified=)\n'
+                      'endif()\n' if category == 'platform-tools' else '')
+                   + ('add_library(libaapt STATIC ${SRC}/base/tools/aapt/AaptConfig.cpp '
+                      '${SRC}/base/tools/aapt/AaptUtil.cpp ${CMAKE_SOURCE_DIR}/droidforge_locale.cpp)\n'
+                      'target_link_libraries(libaapt PUBLIC libandroidfw libutils libbase fmt::fmt)\n'
+                      'target_include_directories(libaapt PRIVATE ${SRC}/core/libcutils/include '
+                      '${SRC}/base/tools/aapt)\n'
+                      if category == 'build-tools' else '')
                    + ''.join(f'include({name}.cmake)\n' for name in includes))
         write(backend / category / 'CMakeLists.txt', content.encode())
     top = backend / 'CMakeLists.txt'
@@ -159,6 +212,13 @@ def prepare(root, backend):
     if '# DroidForge glibc entropy declarations' not in text:
         text += ('\n# DroidForge glibc entropy declarations\n'
                  'target_compile_definitions(expat PRIVATE _DEFAULT_SOURCE)\n')
+    if '# DroidForge static archive rescan' not in text:
+        text += ('\n# DroidForge static archive rescan\n'
+                 'foreach(_tool aapt2 aidl zipalign split-select adb fastboot)\n'
+                 '  get_target_property(_libraries ${_tool} LINK_LIBRARIES)\n'
+                 '  set_property(TARGET ${_tool} PROPERTY LINK_LIBRARIES '
+                 '"-Wl,--start-group;${_libraries};-Wl,--end-group")\n'
+                 'endforeach()\n')
     write(top, text.encode())
     # Keep generated Flex/Bison C++ out of the immutable source checkout.
     aidl_recipe = backend / 'build-tools/aidl.cmake'
@@ -227,7 +287,8 @@ def build(root, targets=None, jobs=None, arch='auto'):
                     .replace('-DCMAKE_CXX_COMPILER=clang++', '-DCMAKE_CXX_COMPILER=g++') for item in common]
     run(['cmake', '-S', backend, '-B', target_dir, *target_common, '-DSDK_STATIC=OFF', '-DSDK_STRIP=ON',
          '-DPROTOC_PATH=' + str(protoc), '-DCMAKE_CXX_FLAGS=-include ' + shlex.quote(str(compat))], log=log, env=environment)
-    run(['cmake', '--build', target_dir, '--target', *targets, '-j', jobs], log=log, env=environment)
+    # Finish independent targets so one compiler failure does not hide others.
+    run(['cmake', '--build', target_dir, '--target', *targets, '-j', jobs, '--', '-k0'], log=log, env=environment)
     stage = Path(tempfile.mkdtemp(prefix='stage-', dir=state))
     try:
         for target in targets:
