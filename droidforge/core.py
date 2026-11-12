@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import tomllib
 import signal
+import sys
 
 TARGETS = ('aapt2', 'aidl', 'zipalign', 'split-select', 'adb', 'fastboot')
 
@@ -52,10 +53,21 @@ def run(command, *, cwd=None, capture=False, log=None, env=None):
     process = None
     try:
         process = subprocess.Popen(command, cwd=cwd, text=True, env=env,
-                                   stdout=subprocess.PIPE if capture else stream,
+                                   stdout=subprocess.PIPE if capture or stream else None,
                                    stderr=subprocess.PIPE if capture else (subprocess.STDOUT if stream else None),
                                    start_new_session=True)
-        output, errors = process.communicate()
+        if stream is not None and not capture:
+            # Tee each Ninja/CMake line immediately; retain the complete build log.
+            for line in process.stdout:
+                stream.write(line)
+                stream.flush()
+                sys.stdout.write(line)
+                sys.stdout.flush()
+            process.stdout.close()
+            process.wait()
+            output, errors = '', ''
+        else:
+            output, errors = process.communicate()
         if process.returncode:
             raise ForgeError(f'{shlex.join(command)}\n{(errors or "").strip()}' if capture
                              else f'Команда завершилася з кодом {process.returncode}'
@@ -69,6 +81,8 @@ def run(command, *, cwd=None, capture=False, log=None, env=None):
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
+        if process is not None and process.stdout is not None:
+            process.stdout.close()
         if stream is not None:
             stream.close()
 
