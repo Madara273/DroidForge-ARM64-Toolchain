@@ -10,7 +10,7 @@ from .core import ForgeError, TARGETS, config, process_lock
 
 
 def main():
-    parser = argparse.ArgumentParser(description='DroidForge — Android host tools із джерел для Linux ARM64/x86_64')
+    parser = argparse.ArgumentParser(description='DroidForge: Android host tools із джерел для Linux ARM64/x86_64')
     parser.add_argument('--version', action='version', version=__version__)
     commands = parser.add_subparsers(dest='command', required=True)
     for name in ('doctor', 'bootstrap', 'fetch', 'verify', 'package'):
