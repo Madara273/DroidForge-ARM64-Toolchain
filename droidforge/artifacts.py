@@ -1,3 +1,5 @@
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 """Verified distributions and explicit SDK installation; no device operations."""
 from datetime import datetime, timezone
 import io

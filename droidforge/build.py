@@ -1,3 +1,5 @@
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 """Native host build orchestration, source preparation and smoke checks."""
 import importlib.util
 import json

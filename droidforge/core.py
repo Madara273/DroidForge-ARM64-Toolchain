@@ -1,3 +1,5 @@
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 """Shared filesystem, process and configuration primitives (stdlib only)."""
 from contextlib import contextmanager
 from datetime import datetime, timezone

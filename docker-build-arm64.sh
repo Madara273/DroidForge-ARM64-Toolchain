@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 set -eu
 usage() {
     printf '%s\n' 'Використання: ./docker-build-arm64.sh [--jobs 1..64]' \

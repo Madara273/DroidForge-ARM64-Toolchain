@@ -1,4 +1,5 @@
-/* DroidForge compatibility declarations for AOSP host tools on glibc.
+/* Copyright 2026 Madara273
+ * DroidForge compatibility declarations for AOSP host tools on glibc.
  * AOSP's C++ code uses bionic atomic typedefs and Darwin availability syntax.
  * SPDX-License-Identifier: Apache-2.0
  */

@@ -1,3 +1,5 @@
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 """Prepare a user's Android APK build environment without editing app projects."""
 import argparse
 from datetime import datetime, timezone

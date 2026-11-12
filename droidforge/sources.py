@@ -1,3 +1,5 @@
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 """Pinned Git sources. Never treat a half-cloned directory as a cache hit."""
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json

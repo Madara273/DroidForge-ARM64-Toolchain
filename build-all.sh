@@ -1,6 +1,7 @@
 #!/bin/sh
-# Install prerequisites and build the complete native toolchain locally.
+# Copyright 2026 Madara273
 # SPDX-License-Identifier: Apache-2.0
+# Install prerequisites and build the complete native toolchain locally.
 set -eu
 
 usage() {

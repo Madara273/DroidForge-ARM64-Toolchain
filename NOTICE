@@ -1,5 +1,7 @@
 DroidForge ARM64 Toolchain
-Independent source/build orchestration by Madara273 and contributors.
+Copyright 2026 Madara273
+Original DroidForge scripts, CLI, and compatibility code are licensed under
+the Apache License, Version 2.0. See LICENSE.
 
 External build recipe dependency: lzhiyong/android-sdk-tools
 https://github.com/lzhiyong/android-sdk-tools

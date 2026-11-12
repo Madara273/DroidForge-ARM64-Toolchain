@@ -1,3 +1,5 @@
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
 """Linux distribution package plans and host CPU detection."""
 import platform
 import re

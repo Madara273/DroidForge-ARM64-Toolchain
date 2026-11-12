@@ -1,6 +1,7 @@
 #!/bin/sh
-# Prepare APK build dependencies without compiling tools or editing app projects.
+# Copyright 2026 Madara273
 # SPDX-License-Identifier: Apache-2.0
+# Prepare APK build dependencies without compiling tools or editing app projects.
 set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 launch() {

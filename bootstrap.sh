@@ -1,5 +1,7 @@
 #!/bin/sh
-# Minimal entry point for hosts without Python yet. SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 Madara273
+# SPDX-License-Identifier: Apache-2.0
+# Minimal entry point for hosts without Python yet.
 set -eu
 if [ "$(id -u)" -ne 0 ]; then
     echo 'Запустіть sudo ./bootstrap.sh (компіляція далі працює без root).' >&2
