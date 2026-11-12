@@ -8,6 +8,17 @@ from droidforge.build import selected_targets, jobs_count
 
 
 class BuildTests(unittest.TestCase):
+    def test_build_configuration_is_grouped_with_its_source_lock(self):
+        import json
+        from droidforge.core import config
+        project = Path(__file__).resolve().parents[1]
+        settings = config(project)
+        self.assertTrue((project / 'config/toolchain.toml').is_file())
+        lock = json.loads((project / 'config/sources.lock.json').read_text())
+        self.assertEqual(lock['recipe']['commit'], settings['recipe']['commit'])
+        self.assertFalse((project / 'toolchain.toml').exists())
+        self.assertFalse((project / 'sources.lock.json').exists())
+
     def test_rejects_unknown_or_empty_targets(self):
         for targets in ([], ['adb', 'flash-everything'], ['adb', 'adb']):
             with self.assertRaises(ForgeError): selected_targets(targets)
@@ -39,7 +50,7 @@ class BuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shutil.copytree(project / 'droidforge', root / 'droidforge')
-            shutil.copy2(project / 'toolchain.toml', root / 'toolchain.toml')
+            shutil.copytree(project / 'config', root / 'config')
             shutil.copy2(project / 'forge', root / 'forge')
             fake_bin = root / 'bin'
             fake_bin.mkdir()
@@ -67,7 +78,8 @@ class BuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shutil.copytree(project / 'droidforge', root / 'droidforge')
-            for name in ('forge', 'bootstrap.sh', 'toolchain.toml'):
+            shutil.copytree(project / 'config', root / 'config')
+            for name in ('forge', 'bootstrap.sh'):
                 shutil.copy2(project / name, root / name)
             fake = root / 'bin'
             fake.mkdir()

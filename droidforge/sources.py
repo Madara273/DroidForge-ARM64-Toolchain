@@ -216,12 +216,12 @@ def fetch(root):
     paths = [entry['path'] for entry in manifest]
     if len(set(paths)) != len(paths):
         raise ForgeError('Дубльований шлях у маніфесті джерел.')
-    lock_path = root / 'sources.lock.json'
+    lock_path = root / 'config/sources.lock.json'
     identity = {**recipe, 'manifest_sha256': digest(backend / 'repository.json')}
     if lock_path.exists():
         lock = json.loads(lock_path.read_text())
         if lock.get('recipe') != identity or lock.get('schema') != 1:
-            raise ForgeError('Конфігурація не відповідає sources.lock.json. Для нової версії використайте окремий checkout.')
+            raise ForgeError('Конфігурація не відповідає config/sources.lock.json. Для нової версії використайте окремий checkout.')
         expected = {entry['path']: entry for entry in manifest}
         actual = {entry['path']: entry for entry in lock['sources']}
         if len(actual) != len(lock['sources']) or set(actual) != set(expected):

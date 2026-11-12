@@ -108,6 +108,17 @@ For individual steps or selected tools:
 ./forge package
 ```
 
+## Project layout
+
+```text
+bootstrap.sh, build-all.sh, setup-android.sh, docker-build-arm64.sh, forge
+config/       # Build settings and pinned source lock
+docker/       # Dockerfile and build context
+droidforge/   # Python implementation
+compat/       # Linux compatibility headers
+tests/        # Python and native tests
+```
+
 ## Source and license
 
 Source baseline: AOSP `platform-tools-35.0.2`, with pinned Git commits.

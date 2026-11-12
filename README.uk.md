@@ -110,6 +110,17 @@ Docker Desktop уже містить емуляцію. Повну Docker-збі�
 ./forge package
 ```
 
+## Структура проєкту
+
+```text
+bootstrap.sh, build-all.sh, setup-android.sh, docker-build-arm64.sh, forge
+config/       # Налаштування збірки та зафіксовані джерела
+docker/       # Dockerfile і контекст збірки
+droidforge/   # Реалізація на Python
+compat/       # Заголовки сумісності з Linux
+tests/        # Тести Python і C++
+```
+
 ## Джерела та ліцензія
 
 База джерел: AOSP `platform-tools-35.0.2`, коміти Git зафіксовано.

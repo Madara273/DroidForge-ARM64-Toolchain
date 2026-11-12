@@ -11,6 +11,7 @@ class DockerBuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='forge docker ') as directory:
             root = Path(directory)
             shutil.copy2(Path(__file__).resolve().parents[1] / 'docker-build-arm64.sh', root)
+            shutil.copytree(Path(__file__).resolve().parents[1] / 'docker', root / 'docker')
             binary = root / 'bin'
             binary.mkdir()
             (binary / 'nproc').write_text('#!/bin/sh\nprintf \"8\\n\"\n')
@@ -19,6 +20,12 @@ class DockerBuildTests(unittest.TestCase):
             docker.write_text('''#!/bin/sh
 printf '%s\\n' "$*" >> "$DOCKER_LOG"
 [ "$1" != "$FAIL_COMMAND" ] || exit 23
+if [ "$1" = buildx ] && [ "$2" = build ]; then
+    while [ "$#" -gt 0 ]; do
+        if [ "$1" = -f ]; then shift; [ -f "$1" ] || exit 31; fi
+        shift
+    done
+fi
 ''')
             docker.chmod(0o755)
             log = root / 'calls'
@@ -32,6 +39,8 @@ printf '%s\\n' "$*" >> "$DOCKER_LOG"
         result, calls = self.invoke(('--jobs', '2'))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--platform linux/arm64 --load', calls[2])
+        self.assertIn('/docker/Dockerfile', calls[2])
+        self.assertTrue(calls[2].endswith('/docker'))
         self.assertIn('--platform linux/arm64', calls[3])
         self.assertIn('.docker-cache/arm64:/workspace/.forge', calls[3])
         self.assertIn('--arch arm64 --jobs', '\n'.join(calls[3:]))

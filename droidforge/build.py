@@ -241,7 +241,7 @@ def prepare(root, backend):
                      + '\ntarget_include_directories(aidl PRIVATE ${SRC}/aidl '
                      '${CMAKE_BINARY_DIR}/generated/aidl)\n')
     write(aidl_recipe, aidl_text.encode())
-    lock = json.loads((Path(root) / 'sources.lock.json').read_text())
+    lock = json.loads((Path(root) / 'config/sources.lock.json').read_text())
     diffs = {'.': tracked_digest(backend, nested_sources=True)}
     diffs.update({entry['path']: tracked_digest(backend / entry['path']) for entry in lock['sources']})
     atomic_json(Path(root) / '.forge/preparation.json', {
@@ -305,7 +305,7 @@ def build(root, targets=None, jobs=None, arch='auto'):
             elf_arch(source, arch)
             shutil.copy2(source, stage / target)
         collect_notices(root, backend, stage)
-        lock = json.loads((root / 'sources.lock.json').read_text())
+        lock = json.loads((root / 'config/sources.lock.json').read_text())
         provenance = {'created': timestamp(), 'sources': lock,
                       'preparation': json.loads((state / 'preparation.json').read_text()),
                       'compiler': run(['g++', '--version'], capture=True),
@@ -332,7 +332,7 @@ def build(root, targets=None, jobs=None, arch='auto'):
 def collect_notices(root, backend, stage):
     shutil.copy2(Path(root) / 'NOTICE', stage / 'NOTICES')
     shutil.copy2(backend / 'LICENSE.txt', stage / 'RECIPE-LICENSE.txt')
-    lock = json.loads((Path(root) / 'sources.lock.json').read_text())
+    lock = json.loads((Path(root) / 'config/sources.lock.json').read_text())
     for entry in lock['sources']:
         source = backend / entry['path']
         for path in source.rglob('*'):

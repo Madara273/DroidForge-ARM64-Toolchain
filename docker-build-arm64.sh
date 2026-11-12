@@ -30,7 +30,7 @@ docker buildx version >/dev/null
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 mkdir -p "$project_dir/.docker-cache/arm64" "$project_dir/.forge" "$project_dir/dist"
 docker buildx build --platform linux/arm64 --load \
-    -t droidforge-arm64:local -f "$project_dir/Dockerfile" "$project_dir"
+    -t droidforge-arm64:local -f "$project_dir/docker/Dockerfile" "$project_dir/docker"
 printf '%s\n' 'Запуск ARM64. Якщо виникне exec format error, увімкніть QEMU/binfmt (див. README).'
 docker run --rm --init --platform linux/arm64 \
     --user "$(id -u):$(id -g)" \

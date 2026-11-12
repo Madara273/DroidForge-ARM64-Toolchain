@@ -106,7 +106,7 @@ def timestamp():
 
 
 def config(root):
-    data = tomllib.loads((Path(root) / 'toolchain.toml').read_text())
+    data = tomllib.loads((Path(root) / 'config/toolchain.toml').read_text())
     import re
     recipe = data['recipe']
     if not re.fullmatch(r'[0-9a-f]{40}', recipe['commit']):
