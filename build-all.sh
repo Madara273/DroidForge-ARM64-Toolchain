@@ -9,13 +9,16 @@ usage() {
 
 Автоматично встановлює залежності, збирає всі шість інструментів,
 перевіряє їх і створює архів у dist/.
-За замовчуванням --jobs 1, щоб заощадити оперативну пам'ять.
+За замовчуванням використовуються всі доступні потоки CPU (до 64).
 Запускайте звичайним користувачем; sudo потрібен лише для залежностей.
 У root-середовищі NetHunter запускайте без sudo.
 HELP
 }
 
-build_jobs=1
+build_jobs=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
+case "$build_jobs" in ''|*[!0-9]*) build_jobs=1 ;; esac
+[ "$build_jobs" -ge 1 ] || build_jobs=1
+[ "$build_jobs" -le 64 ] || build_jobs=64
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --jobs)

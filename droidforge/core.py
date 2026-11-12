@@ -100,6 +100,8 @@ def config(root):
     if not recipe['aosp_ref'] or recipe['aosp_ref'].startswith('-'):
         raise ForgeError('Неприпустимий AOSP ref.')
     for key in ('jobs', 'fetch_jobs'):
+        if key == 'jobs' and data['build'][key] == 'auto':
+            continue
         if not isinstance(data['build'][key], int) or not 1 <= data['build'][key] <= 64:
             raise ForgeError(f'build.{key} має бути в межах 1..64.')
     limit = data['build']['max_source_gib']

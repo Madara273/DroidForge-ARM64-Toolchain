@@ -24,6 +24,7 @@ if [ "$1" = package ]; then touch "$RESULT_MARKER"; fi
 ''')
             (root / 'forge').chmod(0o755)
             helpers = {
+                'nproc': '#!/bin/sh\nprintf \"8\\n\"\n',
                 'id': '#!/bin/sh\nprintf "%s\\n" "$FAKE_UID"\n',
                 'sudo': '#!/bin/sh\n[ "$1" != -- ] || shift\nexec "$@"\n',
                 'runuser': '#!/bin/sh\nexport RUN_AS="$2"\nshift 3\nexec "$@"\n',
@@ -45,7 +46,7 @@ if [ "$1" = package ]; then touch "$RESULT_MARKER"; fi
         completed, events, archive = self.invoke()
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertEqual(events, ['bootstrap', 'forge:doctor:user=direct',
-                                 'forge:build --jobs 1:user=direct',
+                                 'forge:build --jobs 8:user=direct',
                                  'forge:verify:user=direct', 'forge:package:user=direct'])
         self.assertTrue(archive)
 
@@ -64,7 +65,7 @@ if [ "$1" = package ]; then touch "$RESULT_MARKER"; fi
     def test_sudo_invocation_builds_as_original_user(self):
         completed, events, archive = self.invoke(sudo_user='builder')
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn('forge:build --jobs 1:user=builder', events)
+        self.assertIn('forge:build --jobs 8:user=builder', events)
         self.assertTrue(archive)
 
     def test_invalid_jobs_and_help_do_not_install_anything(self):

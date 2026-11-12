@@ -4,7 +4,10 @@ usage() {
     printf '%s\n' 'Використання: ./docker-build-arm64.sh [--jobs 1..64]' \
         'Збирає ARM64 інструменти в Docker; на x86 потрібна емуляція ARM64.'
 }
-build_jobs=1
+build_jobs=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || printf '1')
+case "$build_jobs" in ''|*[!0-9]*) build_jobs=1 ;; esac
+[ "$build_jobs" -ge 1 ] || build_jobs=1
+[ "$build_jobs" -le 64 ] || build_jobs=64
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --help|-h) usage; exit 0 ;;

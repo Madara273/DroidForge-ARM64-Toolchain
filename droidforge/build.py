@@ -36,6 +36,12 @@ def selected_targets(targets):
 
 def jobs_count(value, settings):
     value = settings['jobs'] if value is None else value
+    if value == 'auto':
+        try:
+            available = len(os.sched_getaffinity(0))
+        except (AttributeError, OSError):
+            available = os.cpu_count() or 1
+        value = max(1, min(64, available))
     if not isinstance(value, int) or not 1 <= value <= 64:
         raise ForgeError('jobs має бути в межах 1..64.')
     return value

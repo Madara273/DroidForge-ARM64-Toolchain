@@ -1,6 +1,7 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from droidforge.core import ForgeError
 from droidforge.build import selected_targets, jobs_count
@@ -12,7 +13,16 @@ class BuildTests(unittest.TestCase):
             with self.assertRaises(ForgeError): selected_targets(targets)
         self.assertEqual(selected_targets(['adb', 'fastboot']), ['adb', 'fastboot'])
 
-    def test_conservative_parallelism(self):
+    def test_automatic_parallelism(self):
+        with patch('os.sched_getaffinity', return_value=set(range(8))):
+            self.assertEqual(jobs_count(None, {'jobs': 'auto'}), 8)
+            self.assertEqual(jobs_count(2, {'jobs': 'auto'}), 2)
+        with patch('os.sched_getaffinity', return_value=set(range(128))):
+            self.assertEqual(jobs_count(None, {'jobs': 'auto'}), 64)
+        with patch('os.sched_getaffinity', side_effect=OSError), patch('os.cpu_count', return_value=4):
+            self.assertEqual(jobs_count(None, {'jobs': 'auto'}), 4)
+
+    def test_explicit_parallelism(self):
         self.assertEqual(jobs_count(None, {'jobs': 1}), 1)
         self.assertEqual(jobs_count(2, {'jobs': 1}), 2)
         for jobs in (0, -1, 100):

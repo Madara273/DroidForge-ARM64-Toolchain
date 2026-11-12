@@ -13,6 +13,8 @@ class DockerBuildTests(unittest.TestCase):
             shutil.copy2(Path(__file__).resolve().parents[1] / 'docker-build-arm64.sh', root)
             binary = root / 'bin'
             binary.mkdir()
+            (binary / 'nproc').write_text('#!/bin/sh\nprintf \"8\\n\"\n')
+            (binary / 'nproc').chmod(0o755)
             docker = binary / 'docker'
             docker.write_text('''#!/bin/sh
 printf '%s\\n' "$*" >> "$DOCKER_LOG"
@@ -34,6 +36,11 @@ printf '%s\\n' "$*" >> "$DOCKER_LOG"
         self.assertIn('.docker-cache/arm64:/workspace/.forge', calls[3])
         self.assertIn('--arch arm64 --jobs', '\n'.join(calls[3:]))
         self.assertIn('sh 2', '\n'.join(calls[3:]))
+
+    def test_default_uses_available_processors(self):
+        result, calls = self.invoke()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('sh 8', '\n'.join(calls))
 
     def test_failure_stops_before_container_run(self):
         result, calls = self.invoke(fail='buildx')
