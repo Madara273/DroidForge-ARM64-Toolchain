@@ -1,0 +1,6 @@
+.git
+.forge
+.docker-cache
+dist
+**/__pycache__
+**/*.pyc
